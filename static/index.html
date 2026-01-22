@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TubeMind - AI Video Summarizer</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f0f2f5;
+            color: #333;
+        }
+
+        /* Layout */
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .auth-box {
+            max-width: 400px;
+            margin: 50px auto;
+            text-align: center;
+            display: block;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 15px;
+        }
+
+        /* Elements */
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.secondary {
+            background: #6c757d;
+            margin-top: 10px;
+        }
+
+        button.danger {
+            background: #dc3545;
+            width: auto;
+            font-size: 14px;
+            padding: 8px 15px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .error {
+            color: #dc3545;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        /* Password Eye Toggle */
+        .password-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .password-wrapper input {
+            width: 100%;
+            padding-right: 40px;
+        }
+
+        /* Space for the eye */
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        .password-toggle:hover {
+            opacity: 1;
+        }
+
+        /* Admin Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .admin-panel {
+            border: 2px solid #dc3545;
+            background: #fff5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* Sections */
+        .upload-area {
+            border: 2px dashed #007bff;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: #f9fbff;
+            margin-bottom: 20px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 0.9em;
+            background: #eee;
+        }
+
+        #summary-box {
+            background: #eef7ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid #007bff;
+            display: none;
+            margin-top: 20px;
+        }
+
+        /* Chat */
+        .chat-container {
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .chat-input-group {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        textarea {
+            resize: none;
+            overflow: hidden;
+            min-height: 45px;
+        }
+
+        #chat-response {
+            background: #f1f1f1;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            min-height: 40px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="auth-screen" class="container auth-box">
+        <h1 style="color: #007bff;">🧠 TubeMind</h1>
+        <p>Login to start analyzing videos.</p>
+
+        <div id="login-form">
+            <input type="text" id="username" placeholder="Username">
+
+            <div class="password-wrapper">
+                <input type="password" id="password" placeholder="Password" autocomplete="new-password">
+                <img src="/static/eye_c.png" id="toggle-login" class="password-toggle"
+                    onclick="togglePassword('password', 'toggle-login')">
+            </div>
+
+            <button onclick="login()">Log In</button>
+            <button class="secondary" onclick="toggleAuth('register')">Create Account</button>
+        </div>
+
+        <div id="register-form" class="hidden">
+            <input type="text" id="reg-username" placeholder="Choose Username">
+
+            <div class="password-wrapper">
+                <input type="password" id="reg-password" placeholder="Choose Password" autocomplete="new-password">
+                <img src="/static/eye_c.png" id="toggle-reg" class="password-toggle"
+                    onclick="togglePassword('reg-password', 'toggle-reg')">
+            </div>
+
+            <button onclick="register()">Sign Up</button>
+            <button class="secondary" onclick="toggleAuth('login')">Back to Login</button>
+        </div>
+        <p id="auth-error" class="error"></p>
+    </div>
+
+    <div id="dashboard-screen" class="container">
+        <div class="header">
+            <h2>🚀 TubeMind Dashboard</h2>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span id="user-display" style="font-weight: bold; color: #555;"></span>
+                <button onclick="logout()"
+                    style="background: #333; width: auto; font-size: 14px; padding: 8px 15px;">Logout</button>
+            </div>
+        </div>
+
+        <div id="my-videos-section" style="margin-bottom: 20px;">
+            <h3>📂 My Videos</h3>
+            <div id="video-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;">
+                <p style="color:#777;">No videos found.</p>
+            </div>
+        </div>
+
+        <div id="admin-section" class="admin-panel hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="color: #dc3545; margin: 0;">🛡️ Admin Controls</h3>
+                <button class="danger" onclick="clearSystem()">⚠️ Factory Reset</button>
+            </div>
+            <h4>User Database</h4>
+            <div style="overflow-x: auto;">
+                <table id="user-table">
+                    <thead>
+                        <tr>
+                            <th>User ID (UUID)</th>
+                            <th>Username</th>
+                            <th>IP Location</th>
+                            <th>Account Age</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-list-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="upload-area">
+            <h3>1. Upload Video</h3>
+            <p style="color: #666; margin-bottom: 15px;">Supports MP4, AVI, MOV (Max 500MB)</p>
+            <input type="file" id="videoInput" accept="video/*" style="max-width: 300px;">
+            <button onclick="uploadVideo()" style="max-width: 200px; margin-top: 10px;">Upload & Process</button>
+            <div id="upload-status" style="margin-top: 15px; font-weight: bold;"></div>
+        </div>
+
+        <div id="summary-box">
+            <h3>2. AI Summary</h3>
+            <p id="summary-text" style="white-space: pre-wrap; line-height: 1.6;"></p>
+        </div>
+
+        <div class="chat-container">
+            <h3>3. Chat with Video</h3>
+            <div class="chat-input-group">
+                <textarea id="chatInput" rows="1" placeholder="Ask something... (Shift+Enter for new line)"></textarea>
+                <button onclick="sendChat()" style="width: 100px; height: 50px;">Ask</button>
+            </div>
+            <p id="chat-response">🤖 <i>AI answer will appear here...</i></p>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('access_token');
+        let currentVideoId = null;
+
+        // --- TOGGLE PASSWORD FUNCTION ---
+        function togglePassword(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+
+            if (input.type === "password") {
+                input.type = "text";
+                icon.src = "/static/eye_o.png"; // Show Open Eye
+            } else {
+                input.type = "password";
+                icon.src = "/static/eye_c.png"; // Show Closed Eye
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        document.getElementById("password").addEventListener("keypress", (e) => { if (e.key === "Enter") { e.preventDefault(); login(); } });
+        const chatBox = document.getElementById("chatInput");
+        chatBox.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+        chatBox.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
+
+        if (token) showDashboard();
+
+        function toggleAuth(mode) {
+            document.getElementById('login-form').classList.toggle('hidden', mode === 'register');
+            document.getElementById('register-form').classList.toggle('hidden', mode === 'login');
+            document.getElementById('auth-error').innerText = "";
+        }
+
+        async function register() {
+            const user = document.getElementById('reg-username').value;
+            const pass = document.getElementById('reg-password').value;
+            const formData = new FormData();
+            formData.append('username', user);
+            formData.append('password', pass);
+            const res = await fetch(`http://127.0.0.1:8000/register`, { method: 'POST', body: formData });
+            if (res.ok) { alert("Registered! Please log in."); toggleAuth('login'); }
+            else { const data = await res.json(); document.getElementById('auth-error').innerText = data.detail; }
+        }
+
+        async function login() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const params = new URLSearchParams();
+            params.append('username', user);
+            params.append('password', pass);
+            const res = await fetch('http://127.0.0.1:8000/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
+            const data = await res.json();
+            if (res.ok) {
+                token = data.access_token;
+                localStorage.setItem('access_token', token);
+                localStorage.setItem('user_role', data.role);
+                localStorage.setItem('username', user);
+                showDashboard();
+            } else { document.getElementById('auth-error').innerText = "Invalid credentials"; }
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
+
+        function showDashboard() {
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('dashboard-screen').style.display = 'block';
+            const username = localStorage.getItem('username');
+            const role = localStorage.getItem('user_role');
+            document.getElementById('user-display').innerText = `👤 ${username}`;
+
+            fetchMyVideos(); // Load video history
+
+            if (role === 'admin') {
+                document.getElementById('admin-section').classList.remove('hidden');
+                fetchUsers();
+            }
+        }
+
+        async function fetchMyVideos() {
+            const res = await fetch('http://127.0.0.1:8000/my_videos', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            if (res.ok) {
+                const videos = await res.json();
+                const container = document.getElementById('video-list');
+
+                if (videos.length === 0) {
+                    container.innerHTML = '<p style="color:#777;">No videos uploaded yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = ''; // Clear list
+                videos.forEach(vid => {
+                    // Status Color
+                    let color = '#ffc107'; // Pending (Yellow)
+                    if (vid.status === 'COMPLETED') color = '#28a745'; // Green
+                    if (vid.status.includes('FAILED')) color = '#dc3545'; // Red
+
+                    // FIX: We only pass the ID now, not the messy text
+                    const viewBtn = vid.status === 'COMPLETED'
+                        ? `<button onclick="loadVideo(${vid.id})" style="padding: 5px 10px; font-size: 0.8em; width: auto;">View</button>`
+                        : '';
+
+                    const item = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 6px; border-left: 4px solid ${color};">
+                            <div>
+                                <strong>${vid.filename}</strong>
+                                <span style="font-size: 0.8em; color: #555; margin-left: 10px;">${vid.status}</span>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                ${viewBtn}
+                                <button onclick="deleteVideo(${vid.id})" style="background: #dc3545; padding: 5px 10px; font-size: 0.8em; width: auto;">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += item;
+                });
+            }
+        }
+
+        // FIX: Fetch the summary from the server when clicked
+        async function loadVideo(id) {
+            currentVideoId = id;
+            document.getElementById('summary-box').style.display = 'block';
+            document.getElementById('summary-text').innerText = "Loading summary...";
+
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/video/${id}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('summary-text').innerText = data.summary;
+                    document.getElementById('upload-status').innerHTML = '<span class="status-badge" style="background:#d4edda; color:#155724">Loaded from History</span>';
+
+                    // Also scroll to the summary so user sees it
+                    document.getElementById('summary-box').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    document.getElementById('summary-text').innerText = "Error loading summary.";
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('summary-text').innerText = "Failed to fetch video details.";
+            }
+        }
+
+        async function fetchUsers() {
+            const res = await fetch('http://127.0.0.1:8000/admin/users', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.ok) {
+                const users = await res.json();
+                const tbody = document.getElementById('user-list-body');
+                tbody.innerHTML = '';
+                users.forEach(user => {
+                    const isSelf = user.username === localStorage.getItem('username');
+                    const deleteBtn = isSelf ? '' : `<button onclick="deleteUser('${user.id}')" style="background:none; border:none; cursor:pointer; font-size:1.2em;" title="Delete User">⛔</button>`;
+                    tbody.innerHTML += `<tr><td style="font-family: monospace; font-size: 0.8em;">${user.id}</td><td><b>${user.username}</b> ${user.role === 'admin' ? '🛡️' : ''}</td><td>${user.ip}</td><td>${user.account_age}</td><td style="text-align:center;">${deleteBtn}</td></tr>`;
+                });
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm("Are you sure you want to BAN and DELETE this user?")) return;
+            const res = await fetch(`http://127.0.0.1:8000/admin/user/${userId}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.ok) { alert("User deleted."); fetchUsers(); } else { const data = await res.json(); alert("Error: " + data.detail); }
+        }
+
+        async function uploadVideo() {
+            const fileInput = document.getElementById('videoInput');
+            const file = fileInput.files[0];
+            if (!file) return alert("Please select a file!");
+            if (file.size > 500 * 1024 * 1024) return alert("File is too large! Max size is 500MB.");
+
+            const formData = new FormData();
+            formData.append("file", file);
+            document.getElementById('upload-status').innerHTML = '<span class="status-badge">Uploading...</span>';
+            const res = await fetch('http://127.0.0.1:8000/upload/', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                currentVideoId = data.video_id;
+                document.getElementById('upload-status').innerHTML = `<span class="status-badge">Processing ID: ${currentVideoId}</span>`;
+                pollStatus();
+            } else { alert("Upload failed. Are you logged in?"); }
+        }
+
+        async function pollStatus() {
+            const interval = setInterval(async () => {
+                const res = await fetch(`http://127.0.0.1:8000/video/${currentVideoId}`, { headers: { 'Authorization': 'Bearer ' + token } });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === "COMPLETED") {
+                        clearInterval(interval);
+                        document.getElementById('upload-status').innerHTML = `<span class="status-badge" style="background:#d4edda; color:#155724">✅ Done!</span><button onclick="deleteVideo(${currentVideoId})" style="background: #dc3545; font-size: 0.8em; padding: 5px 10px; width: auto; margin-left: 10px;">🗑️ Delete</button>`;
+                        document.getElementById('summary-box').style.display = "block";
+                        document.getElementById('summary-text').innerText = data.summary;
+                    } else if (data.status.includes("FAILED")) {
+                        clearInterval(interval);
+                        document.getElementById('upload-status').innerHTML = '<span class="status-badge" style="background:#f8d7da; color:#721c24">❌ Failed</span>';
+                    } else { document.getElementById('upload-status').innerText = "⏳ AI is watching the video... (Step: " + data.status + ")"; }
+                }
+            }, 2000);
+        }
+
+        async function deleteVideo(vidId) {
+            if (!confirm("Delete this video permanently?")) return;
+            const res = await fetch(`http://127.0.0.1:8000/video/${vidId}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.ok) { alert("Video deleted!"); location.reload(); } else { alert("Error deleting video"); }
+        }
+
+        async function sendChat() {
+            const query = document.getElementById('chatInput').value;
+            if (!query) return;
+            document.getElementById('chat-response').innerText = "🤔 Thinking...";
+            const res = await fetch(`http://127.0.0.1:8000/chat/${currentVideoId}?query=${encodeURIComponent(query)}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+            const data = await res.json();
+            document.getElementById('chat-response').innerText = data.answer;
+        }
+
+        async function clearSystem() {
+            if (!confirm("⚠️ ADMIN ACTION\nAre you sure you want to delete ALL data?")) return;
+            const res = await fetch('http://127.0.0.1:8000/clear_data', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+            const data = await res.json();
+            alert(data.status || data.error);
+            location.reload();
+        }
+    </script>
+</body>
+
+</html>
