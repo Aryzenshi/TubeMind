@@ -46,4 +46,12 @@ class TranscriptChunk(Base):
     text = Column(Text)
     embedding = Column(Vector(768))
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"))
+    is_user = Column(Integer) # 1 for User, 0 for AI
+    text = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 Base.metadata.create_all(bind=engine)

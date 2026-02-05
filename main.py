@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 
 # Import your database models
-from models import SessionLocal, Video, TranscriptChunk, User
+from models import SessionLocal, Video, TranscriptChunk, User, ChatMessage
 
 app = FastAPI()
 
@@ -277,7 +277,7 @@ def delete_video(video_id: int, current_user: User = Depends(get_current_user), 
 async def upload_video(
     request: Request, 
     file: UploadFile = File(...), 
-    current_user: User = Depends(get_current_user), # ADDED USER DEPENDENCY
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # (Keep your file size check here)
@@ -290,13 +290,14 @@ async def upload_video(
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # NEW: Save with user_id
+    # Save with user_id
     new_video = Video(filename=file.filename, user_id=current_user.id)
     db.add(new_video)
     db.commit()
     db.refresh(new_video)
     
-    task = celery_app.send_task("worker.process_video_task", args=[new_video.id, file_location])
+    # FIX: Pass file.filename as the 3rd argument
+    task = celery_app.send_task("worker.process_video_task", args=[new_video.id, file_location, file.filename])
     
     return {"status": "Processing started", "video_id": new_video.id}
 
@@ -318,6 +319,11 @@ def get_video_db_status(video_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Video not found")
     return {"status": video.status, "summary": video.summary}
 
+@app.get("/chat_history/{video_id}")
+def get_chat_history(video_id: int, db: Session = Depends(get_db)):
+    """Fetch previous conversation for this video."""
+    return db.query(ChatMessage).filter(ChatMessage.video_id == video_id).order_by(ChatMessage.created_at).all()
+
 @app.post("/chat/{video_id}")
 def chat(video_id: int, query: str, db: Session = Depends(get_db)):
     # 1. GET GLOBAL CONTEXT (The Summary)
@@ -325,6 +331,10 @@ def chat(video_id: int, query: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
+    user_msg = ChatMessage(video_id=video_id, is_user=1, text=query) # SAVE USER PROMPT
+    db.add(user_msg)
+    db.commit()
+
     global_context = video.summary if video.summary else "No summary available."
 
     # 2. EMBED QUERY
@@ -339,7 +349,7 @@ def chat(video_id: int, query: str, db: Session = Depends(get_db)):
     if not results and not video.summary:
         return {"answer": "I couldn't find anything relevant in the video."}
 
-    # 4. SORT BY TIME (Crucial for "what happened after X" questions)
+    # 4. SORT BY TIME
     results.sort(key=lambda x: x.start_time)
 
     # 5. BUILD CONTEXT STRING
@@ -368,4 +378,8 @@ def chat(video_id: int, query: str, db: Session = Depends(get_db)):
     
     answer = llm.invoke(prompt)
     
+    ai_msg = ChatMessage(video_id=video_id, is_user=0, text=answer) # SAVE AI ANSWER
+    db.add(ai_msg)
+    db.commit()
+
     return {"answer": answer, "sources": transcript_text}

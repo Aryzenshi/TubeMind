@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TubeMind - AI Video Summarizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
         body {
@@ -41,7 +42,7 @@
             padding-bottom: 15px;
         }
 
-        /* Elements */
+        /* Inputs & Buttons */
         input,
         textarea {
             width: 100%;
@@ -81,6 +82,7 @@
             padding: 8px 15px;
         }
 
+        /* Utils */
         .hidden {
             display: none !important;
         }
@@ -91,31 +93,70 @@
             margin-top: 5px;
         }
 
-        /* Password Eye Toggle */
         .password-wrapper {
             position: relative;
             width: 100%;
         }
 
         .password-wrapper input {
-            width: 100%;
             padding-right: 40px;
         }
 
-        /* Space for the eye */
         .password-toggle {
             position: absolute;
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
             width: 24px;
-            height: 24px;
             cursor: pointer;
             opacity: 0.6;
         }
 
-        .password-toggle:hover {
-            opacity: 1;
+        /* Sections */
+        .admin-panel {
+            border: 2px solid #dc3545;
+            background: #fff5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #007bff;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: #f9fbff;
+            margin-bottom: 20px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 0.9em;
+            background: #eee;
+        }
+
+        /* Summary Box */
+        #summary-box {
+            background: #eef7ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid #007bff;
+            display: none;
+            margin-top: 20px;
+        }
+
+        #summary-text h1,
+        #summary-text h2 {
+            color: #0056b3;
+            margin-top: 15px;
+        }
+
+        #summary-text ul {
+            padding-left: 20px;
         }
 
         /* Admin Table */
@@ -142,67 +183,66 @@
             background-color: #f1f1f1;
         }
 
-        .admin-panel {
-            border: 2px solid #dc3545;
-            background: #fff5f5;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        /* Sections */
-        .upload-area {
-            border: 2px dashed #007bff;
-            padding: 30px;
-            text-align: center;
-            border-radius: 8px;
-            background: #f9fbff;
-            margin-bottom: 20px;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-weight: bold;
-            font-size: 0.9em;
-            background: #eee;
-        }
-
-        #summary-box {
-            background: #eef7ff;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 5px solid #007bff;
-            display: none;
-            margin-top: 20px;
-        }
-
-        /* Chat */
-        .chat-container {
+        /* --- NEW CHAT STYLES --- */
+        .chat-section {
             margin-top: 30px;
             border-top: 1px solid #eee;
             padding-top: 20px;
         }
 
-        .chat-input-group {
+        /* The Scrollable Window */
+        #chat-window {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* Message Bubbles */
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            line-height: 1.5;
+            font-size: 0.95em;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        /* User (Right Side, Blue) */
+        .message.user {
+            align-self: flex-end;
+            background: #007bff;
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+
+        /* AI (Left Side, Grey) */
+        .message.ai {
+            align-self: flex-start;
+            background: #e9ecef;
+            color: #333;
+            border-bottom-left-radius: 2px;
+        }
+
+        /* Markdown inside AI bubbles */
+        .message.ai p {
+            margin: 0 0 10px 0;
+        }
+
+        .message.ai p:last-child {
+            margin: 0;
+        }
+
+        .chat-input-area {
             display: flex;
             gap: 10px;
-            align-items: flex-start;
-        }
-
-        textarea {
-            resize: none;
-            overflow: hidden;
-            min-height: 45px;
-        }
-
-        #chat-response {
-            background: #f1f1f1;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 15px;
-            min-height: 40px;
         }
     </style>
 </head>
@@ -212,29 +252,23 @@
     <div id="auth-screen" class="container auth-box">
         <h1 style="color: #007bff;">🧠 TubeMind</h1>
         <p>Login to start analyzing videos.</p>
-
         <div id="login-form">
             <input type="text" id="username" placeholder="Username">
-
             <div class="password-wrapper">
-                <input type="password" id="password" placeholder="Password" autocomplete="new-password">
+                <input type="password" id="password" placeholder="Password">
                 <img src="/static/eye_c.png" id="toggle-login" class="password-toggle"
                     onclick="togglePassword('password', 'toggle-login')">
             </div>
-
             <button onclick="login()">Log In</button>
             <button class="secondary" onclick="toggleAuth('register')">Create Account</button>
         </div>
-
         <div id="register-form" class="hidden">
             <input type="text" id="reg-username" placeholder="Choose Username">
-
             <div class="password-wrapper">
-                <input type="password" id="reg-password" placeholder="Choose Password" autocomplete="new-password">
+                <input type="password" id="reg-password" placeholder="Choose Password">
                 <img src="/static/eye_c.png" id="toggle-reg" class="password-toggle"
                     onclick="togglePassword('reg-password', 'toggle-reg')">
             </div>
-
             <button onclick="register()">Sign Up</button>
             <button class="secondary" onclick="toggleAuth('login')">Back to Login</button>
         </div>
@@ -253,9 +287,7 @@
 
         <div id="my-videos-section" style="margin-bottom: 20px;">
             <h3>📂 My Videos</h3>
-            <div id="video-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;">
-                <p style="color:#777;">No videos found.</p>
-            </div>
+            <div id="video-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;"></div>
         </div>
 
         <div id="admin-section" class="admin-panel hidden">
@@ -268,10 +300,10 @@
                 <table id="user-table">
                     <thead>
                         <tr>
-                            <th>User ID (UUID)</th>
+                            <th>User ID</th>
                             <th>Username</th>
-                            <th>IP Location</th>
-                            <th>Account Age</th>
+                            <th>IP</th>
+                            <th>Age</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -290,16 +322,22 @@
 
         <div id="summary-box">
             <h3>2. AI Summary</h3>
-            <p id="summary-text" style="white-space: pre-wrap; line-height: 1.6;"></p>
+            <div id="summary-text" style="line-height: 1.6;"></div>
         </div>
 
-        <div class="chat-container">
+        <div class="chat-section">
             <h3>3. Chat with Video</h3>
-            <div class="chat-input-group">
+
+            <div id="chat-window">
+                <div style="text-align: center; color: #aaa; margin-top: 150px;">
+                    <i>Select a video to start chatting</i>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
                 <textarea id="chatInput" rows="1" placeholder="Ask something... (Shift+Enter for new line)"></textarea>
                 <button onclick="sendChat()" style="width: 100px; height: 50px;">Ask</button>
             </div>
-            <p id="chat-response">🤖 <i>AI answer will appear here...</i></p>
         </div>
     </div>
 
@@ -307,21 +345,22 @@
         let token = localStorage.getItem('access_token');
         let currentVideoId = null;
 
-        // --- TOGGLE PASSWORD FUNCTION ---
+        // --- PASSWORD TOGGLE ---
         function togglePassword(inputId, iconId) {
             const input = document.getElementById(inputId);
             const icon = document.getElementById(iconId);
-
-            if (input.type === "password") {
-                input.type = "text";
-                icon.src = "/static/eye_o.png"; // Show Open Eye
-            } else {
-                input.type = "password";
-                icon.src = "/static/eye_c.png"; // Show Closed Eye
-            }
+            if (input.type === "password") { input.type = "text"; icon.src = "/static/eye_o.png"; }
+            else { input.type = "password"; icon.src = "/static/eye_c.png"; }
         }
 
-        // --- EVENT LISTENERS ---
+        // --- AUTH LOGIC ---
+        function toggleAuth(mode) {
+            document.getElementById('login-form').classList.toggle('hidden', mode === 'register');
+            document.getElementById('register-form').classList.toggle('hidden', mode === 'login');
+            document.getElementById('auth-error').innerText = "";
+        }
+
+        // Event Listeners
         document.getElementById("password").addEventListener("keypress", (e) => { if (e.key === "Enter") { e.preventDefault(); login(); } });
         const chatBox = document.getElementById("chatInput");
         chatBox.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } });
@@ -329,18 +368,10 @@
 
         if (token) showDashboard();
 
-        function toggleAuth(mode) {
-            document.getElementById('login-form').classList.toggle('hidden', mode === 'register');
-            document.getElementById('register-form').classList.toggle('hidden', mode === 'login');
-            document.getElementById('auth-error').innerText = "";
-        }
-
         async function register() {
             const user = document.getElementById('reg-username').value;
             const pass = document.getElementById('reg-password').value;
-            const formData = new FormData();
-            formData.append('username', user);
-            formData.append('password', pass);
+            const formData = new FormData(); formData.append('username', user); formData.append('password', pass);
             const res = await fetch(`http://127.0.0.1:8000/register`, { method: 'POST', body: formData });
             if (res.ok) { alert("Registered! Please log in."); toggleAuth('login'); }
             else { const data = await res.json(); document.getElementById('auth-error').innerText = data.detail; }
@@ -349,105 +380,195 @@
         async function login() {
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
-            const params = new URLSearchParams();
-            params.append('username', user);
-            params.append('password', pass);
+            const params = new URLSearchParams(); params.append('username', user); params.append('password', pass);
             const res = await fetch('http://127.0.0.1:8000/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
             const data = await res.json();
             if (res.ok) {
-                token = data.access_token;
-                localStorage.setItem('access_token', token);
+                localStorage.setItem('access_token', data.access_token);
                 localStorage.setItem('user_role', data.role);
                 localStorage.setItem('username', user);
-                showDashboard();
+                location.reload();
             } else { document.getElementById('auth-error').innerText = "Invalid credentials"; }
         }
-
         function logout() { localStorage.clear(); location.reload(); }
 
         function showDashboard() {
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('dashboard-screen').style.display = 'block';
-            const username = localStorage.getItem('username');
-            const role = localStorage.getItem('user_role');
-            document.getElementById('user-display').innerText = `👤 ${username}`;
-
-            fetchMyVideos(); // Load video history
-
-            if (role === 'admin') {
-                document.getElementById('admin-section').classList.remove('hidden');
-                fetchUsers();
-            }
+            document.getElementById('user-display').innerText = `👤 ${localStorage.getItem('username')}`;
+            if (localStorage.getItem('user_role') === 'admin') document.getElementById('admin-section').classList.remove('hidden');
+            fetchMyVideos();
+            if (localStorage.getItem('user_role') === 'admin') fetchUsers();
         }
 
-        async function fetchMyVideos() {
-            const res = await fetch('http://127.0.0.1:8000/my_videos', {
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
+        // --- VIDEO & CHAT LOGIC ---
 
+        async function fetchMyVideos() {
+            const res = await fetch('http://127.0.0.1:8000/my_videos', { headers: { 'Authorization': 'Bearer ' + token } });
             if (res.ok) {
                 const videos = await res.json();
                 const container = document.getElementById('video-list');
-
-                if (videos.length === 0) {
-                    container.innerHTML = '<p style="color:#777;">No videos uploaded yet.</p>';
-                    return;
-                }
-
-                container.innerHTML = ''; // Clear list
+                container.innerHTML = videos.length ? '' : '<p style="color:#777;">No videos uploaded yet.</p>';
                 videos.forEach(vid => {
-                    // Status Color
-                    let color = '#ffc107'; // Pending (Yellow)
-                    if (vid.status === 'COMPLETED') color = '#28a745'; // Green
-                    if (vid.status.includes('FAILED')) color = '#dc3545'; // Red
-
-                    // FIX: We only pass the ID now, not the messy text
-                    const viewBtn = vid.status === 'COMPLETED'
-                        ? `<button onclick="loadVideo(${vid.id})" style="padding: 5px 10px; font-size: 0.8em; width: auto;">View</button>`
-                        : '';
-
-                    const item = `
+                    let color = vid.status === 'COMPLETED' ? '#28a745' : (vid.status.includes('FAILED') ? '#dc3545' : '#ffc107');
+                    const viewBtn = vid.status === 'COMPLETED' ? `<button onclick="loadVideo(${vid.id})" style="padding: 5px 10px; font-size: 0.8em; width: auto;">View</button>` : '';
+                    container.innerHTML += `
                         <div style="display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 6px; border-left: 4px solid ${color};">
-                            <div>
-                                <strong>${vid.filename}</strong>
-                                <span style="font-size: 0.8em; color: #555; margin-left: 10px;">${vid.status}</span>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                ${viewBtn}
-                                <button onclick="deleteVideo(${vid.id})" style="background: #dc3545; padding: 5px 10px; font-size: 0.8em; width: auto;">🗑️</button>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML += item;
+                            <div><strong>${vid.filename}</strong> <span style="font-size: 0.8em; color: #555; margin-left: 10px;">${vid.status}</span></div>
+                            <div style="display:flex; gap:10px;">${viewBtn}<button onclick="deleteVideo(${vid.id})" style="background: #dc3545; padding: 5px 10px; font-size: 0.8em; width: auto;">🗑️</button></div>
+                        </div>`;
                 });
             }
         }
 
-        // FIX: Fetch the summary from the server when clicked
         async function loadVideo(id) {
             currentVideoId = id;
             document.getElementById('summary-box').style.display = 'block';
             document.getElementById('summary-text').innerText = "Loading summary...";
 
+            // 1. Fetch Summary
+            const res = await fetch(`http://127.0.0.1:8000/video/${id}`, { headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('summary-text').innerHTML = marked.parse(data.summary);
+                document.getElementById('upload-status').innerHTML = '<span class="status-badge" style="background:#d4edda; color:#155724">Loaded from History</span>';
+                document.getElementById('summary-box').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            // 2. Fetch Chat History (NEW)
+            loadChatHistory(id);
+        }
+
+        async function loadChatHistory(videoId) {
+            const chatWindow = document.getElementById('chat-window');
+            chatWindow.innerHTML = '<div style="text-align:center; color:#888;">Loading chat history...</div>';
+
             try {
-                const res = await fetch(`http://127.0.0.1:8000/video/${id}`, {
+                const res = await fetch(`http://127.0.0.1:8000/chat_history/${videoId}`, { headers: { 'Authorization': 'Bearer ' + token } });
+                if (res.ok) {
+                    const history = await res.json();
+                    chatWindow.innerHTML = ''; // Clear loading msg
+
+                    if (history.length === 0) {
+                        chatWindow.innerHTML = '<div style="text-align:center; color:#ccc; margin-top:150px;">No chat history yet. Ask a question!</div>';
+                    } else {
+                        history.forEach(msg => {
+                            appendMessage(msg.is_user ? 'user' : 'ai', msg.text);
+                        });
+                    }
+                    chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to bottom
+                }
+            } catch (e) {
+                console.error("Chat load error", e);
+                chatWindow.innerHTML = '<div style="text-align:center; color:red;">Failed to load chat history.</div>';
+            }
+        }
+
+        function appendMessage(role, text) {
+            const chatWindow = document.getElementById('chat-window');
+            // Remove placeholders
+            if (chatWindow.innerHTML.includes('No chat history') || chatWindow.innerHTML.includes('Select a video') || chatWindow.innerHTML.includes('Loading chat')) {
+                chatWindow.innerHTML = '';
+            }
+
+            const bubble = document.createElement('div');
+            bubble.className = `message ${role}`;
+
+            if (role === 'ai') {
+                bubble.innerHTML = marked.parse(text); // Render Markdown for AI
+            } else {
+                bubble.innerText = text; // Plain text for User
+            }
+
+            chatWindow.appendChild(bubble);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        async function sendChat() {
+            const inputField = document.getElementById('chatInput');
+            const query = inputField.value.trim();
+            if (!query || !currentVideoId) return;
+
+            // 1. Show User Message immediately
+            appendMessage('user', query);
+
+            // 2. Clear Input
+            inputField.value = '';
+
+            // 3. Show "Thinking" Bubble
+            const chatWindow = document.getElementById('chat-window');
+            const loadingBubble = document.createElement('div');
+            loadingBubble.className = 'message ai';
+            loadingBubble.id = 'temp-loading';
+            loadingBubble.innerHTML = '<i>🤔 Thinking...</i>';
+            chatWindow.appendChild(loadingBubble);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
+            // 4. Send to Backend
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/chat/${currentVideoId}?query=${encodeURIComponent(query)}`, {
+                    method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
 
+                // Remove Loading Bubble
+                const loader = document.getElementById('temp-loading');
+                if (loader) loader.remove();
+
                 if (res.ok) {
                     const data = await res.json();
-                    document.getElementById('summary-text').innerText = data.summary;
-                    document.getElementById('upload-status').innerHTML = '<span class="status-badge" style="background:#d4edda; color:#155724">Loaded from History</span>';
-
-                    // Also scroll to the summary so user sees it
-                    document.getElementById('summary-box').scrollIntoView({ behavior: 'smooth' });
+                    appendMessage('ai', data.answer);
                 } else {
-                    document.getElementById('summary-text').innerText = "Error loading summary.";
+                    appendMessage('ai', '⚠️ Error: Could not get response.');
                 }
             } catch (e) {
-                console.error(e);
-                document.getElementById('summary-text').innerText = "Failed to fetch video details.";
+                const loader = document.getElementById('temp-loading');
+                if (loader) loader.remove();
+                appendMessage('ai', '⚠️ Connection failed.');
             }
+        }
+
+        // --- UPLOAD & ADMIN ---
+
+        async function uploadVideo() {
+            const file = document.getElementById('videoInput').files[0];
+            if (!file) return alert("Please select a file!");
+            const formData = new FormData(); formData.append("file", file);
+            document.getElementById('upload-status').innerHTML = '<span class="status-badge">Uploading...</span>';
+            const res = await fetch('http://127.0.0.1:8000/upload/', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                currentVideoId = data.video_id;
+                document.getElementById('upload-status').innerHTML = `<span class="status-badge">Processing ID: ${currentVideoId}</span>`;
+                pollStatus();
+            } else { alert("Upload failed."); }
+        }
+
+        async function pollStatus() {
+            const interval = setInterval(async () => {
+                const res = await fetch(`http://127.0.0.1:8000/video/${currentVideoId}`, { headers: { 'Authorization': 'Bearer ' + token } });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === "COMPLETED") {
+                        clearInterval(interval);
+                        document.getElementById('upload-status').innerHTML = `<span class="status-badge" style="background:#d4edda; color:#155724">✅ Done!</span><button onclick="deleteVideo(${currentVideoId})" style="background: #dc3545; font-size: 0.8em; padding: 5px 10px; width: auto; margin-left: 10px;">🗑️ Delete</button>`;
+                        document.getElementById('summary-box').style.display = "block";
+                        document.getElementById('summary-text').innerHTML = marked.parse(data.summary);
+                    } else if (data.status.includes("FAILED")) {
+                        clearInterval(interval);
+                        document.getElementById('upload-status').innerHTML = '<span class="status-badge" style="background:#f8d7da; color:#721c24">❌ Failed</span>';
+                    } else {
+                        // Queue Logic
+                        let statusMsg = "⏳ Processing...";
+                        if (data.status === "PENDING") {
+                            statusMsg = data.queue_position !== undefined ? `⏳ In Queue (Position: #${data.queue_position})` : "⏳ Pending in Queue...";
+                        } else if (data.status.includes("PROCESSING")) {
+                            statusMsg = `⚙️ AI Working... (${data.status})`;
+                        }
+                        document.getElementById('upload-status').innerText = statusMsg;
+                    }
+                }
+            }, 2000);
         }
 
         async function fetchUsers() {
@@ -470,55 +591,10 @@
             if (res.ok) { alert("User deleted."); fetchUsers(); } else { const data = await res.json(); alert("Error: " + data.detail); }
         }
 
-        async function uploadVideo() {
-            const fileInput = document.getElementById('videoInput');
-            const file = fileInput.files[0];
-            if (!file) return alert("Please select a file!");
-            if (file.size > 500 * 1024 * 1024) return alert("File is too large! Max size is 500MB.");
-
-            const formData = new FormData();
-            formData.append("file", file);
-            document.getElementById('upload-status').innerHTML = '<span class="status-badge">Uploading...</span>';
-            const res = await fetch('http://127.0.0.1:8000/upload/', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: formData });
-            if (res.ok) {
-                const data = await res.json();
-                currentVideoId = data.video_id;
-                document.getElementById('upload-status').innerHTML = `<span class="status-badge">Processing ID: ${currentVideoId}</span>`;
-                pollStatus();
-            } else { alert("Upload failed. Are you logged in?"); }
-        }
-
-        async function pollStatus() {
-            const interval = setInterval(async () => {
-                const res = await fetch(`http://127.0.0.1:8000/video/${currentVideoId}`, { headers: { 'Authorization': 'Bearer ' + token } });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === "COMPLETED") {
-                        clearInterval(interval);
-                        document.getElementById('upload-status').innerHTML = `<span class="status-badge" style="background:#d4edda; color:#155724">✅ Done!</span><button onclick="deleteVideo(${currentVideoId})" style="background: #dc3545; font-size: 0.8em; padding: 5px 10px; width: auto; margin-left: 10px;">🗑️ Delete</button>`;
-                        document.getElementById('summary-box').style.display = "block";
-                        document.getElementById('summary-text').innerText = data.summary;
-                    } else if (data.status.includes("FAILED")) {
-                        clearInterval(interval);
-                        document.getElementById('upload-status').innerHTML = '<span class="status-badge" style="background:#f8d7da; color:#721c24">❌ Failed</span>';
-                    } else { document.getElementById('upload-status').innerText = "⏳ AI is watching the video... (Step: " + data.status + ")"; }
-                }
-            }, 2000);
-        }
-
         async function deleteVideo(vidId) {
             if (!confirm("Delete this video permanently?")) return;
             const res = await fetch(`http://127.0.0.1:8000/video/${vidId}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
-            if (res.ok) { alert("Video deleted!"); location.reload(); } else { alert("Error deleting video"); }
-        }
-
-        async function sendChat() {
-            const query = document.getElementById('chatInput').value;
-            if (!query) return;
-            document.getElementById('chat-response').innerText = "🤔 Thinking...";
-            const res = await fetch(`http://127.0.0.1:8000/chat/${currentVideoId}?query=${encodeURIComponent(query)}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-            const data = await res.json();
-            document.getElementById('chat-response').innerText = data.answer;
+            if (res.ok) { alert("Video deleted!"); location.reload(); }
         }
 
         async function clearSystem() {

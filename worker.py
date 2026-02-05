@@ -1,6 +1,7 @@
 import os
 import glob
 import numpy as np
+import gc
 from celery import Celery
 from faster_whisper import WhisperModel
 from langchain_ollama import OllamaEmbeddings, OllamaLLM
@@ -9,28 +10,28 @@ import ffmpeg
 from PIL import Image
 import ollama
 
-# 1. Connect to Queue (Redis)
+# 1. Connect to Queue
 celery_app = Celery("tubemind", broker="redis://localhost:6379/0")
 
-# 2. Load AI Models
-print("Loading Whisper Model...")
-whisper = WhisperModel("medium", device="cuda", compute_type="float16")
-
-print("Loading Embedding Model...")
-embed_model = OllamaEmbeddings(model="nomic-embed-text") 
-
-print("Loading LLM...")
-llm = OllamaLLM(model="llama3")
+print("Worker Ready. Waiting for tasks...")
 
 # --- HELPER FUNCTIONS ---
 
-def has_screen_changed(prev_img_path, curr_img_path, threshold=5.0):
+def has_screen_changed(prev_img_path, curr_img_path, threshold=25.0):
+    """
+    TUNED FOR PERFORMANCE:
+    - Resizes to 32x32 (Blurs details so 'talking heads' don't trigger change)
+    - Higher default threshold
+    """
     if not prev_img_path: return True
     try:
-        img1 = Image.open(prev_img_path).convert("L").resize((64, 64))
-        img2 = Image.open(curr_img_path).convert("L").resize((64, 64))
+        # Resize to 32x32 to ignore small movements (like hands waving)
+        img1 = Image.open(prev_img_path).convert("L").resize((32, 32))
+        img2 = Image.open(curr_img_path).convert("L").resize((32, 32))
+        
         arr1 = np.array(img1)
         arr2 = np.array(img2)
+        
         mse = np.mean((arr1 - arr2) ** 2)
         return mse > threshold
     except Exception as e:
@@ -38,8 +39,11 @@ def has_screen_changed(prev_img_path, curr_img_path, threshold=5.0):
         return True
 
 def extract_frames(video_path, output_folder, interval):
-    if not os.path.exists(output_folder):
+    if os.path.exists(output_folder):
+        for f in glob.glob(f"{output_folder}/*"): os.remove(f)
+    else:
         os.makedirs(output_folder)
+        
     print(f"--- Extracting frames every {interval:.2f}s ---")
     try:
         (
@@ -66,14 +70,23 @@ def process_video_task(video_id: int, file_path: str, original_filename: str = "
     temp_frame_dir = f"temp/frames_{video_id}"
     full_text = ""
     video_duration = 0.0
+    
+    embed_model = OllamaEmbeddings(model="nomic-embed-text") 
 
     try:
-        # --- STEP 1: AUDIO PROCESSING ---
+        # ====================================================
+        # STEP 1: AUDIO
+        # ====================================================
+        print("1. Loading Whisper (GPU)...")
+        whisper = WhisperModel("medium", device="cuda", compute_type="float16")
+        
         audio_path = file_path.replace(".mp4", ".wav")
         if not os.path.exists(audio_path):
             ffmpeg.input(file_path).output(audio_path, ac=1, ar=16000, loglevel="quiet").run(overwrite_output=True)
 
+        print("   Transcribing...")
         segments, _ = whisper.transcribe(audio_path)
+        
         for segment in segments:
             text = segment.text.strip()
             if not text: continue
@@ -83,71 +96,93 @@ def process_video_task(video_id: int, file_path: str, original_filename: str = "
             
             vector = embed_model.embed_query(labeled_text)
             db.add(TranscriptChunk(video_id=video_id, start_time=segment.start, end_time=segment.end, text=labeled_text, embedding=vector))
-            
-        # --- STEP 2: VISUAL PROCESSING (GENERAL CONTEXT) ---
+        
+        print("   Freeing Whisper from Memory...")
+        del whisper
+        gc.collect() 
+        
+        # ====================================================
+        # STEP 2: VISUALS (PERFORMANCE TUNED)
+        # ====================================================
         video.status = "PROCESSING_VISUALS"
         db.commit()
 
-        target_frame_count = 20
-        smart_interval = max(15.0, video_duration / target_frame_count) if video_duration > 0 else 15.0
+        # FIX: 4.0s Interval (Good balance for slides vs speed)
+        smart_interval = 4.0 
         
+        print(f"2. Extracting Frames (Interval: {smart_interval:.1f}s)...")
         extract_frames(file_path, temp_frame_dir, interval=smart_interval)
+        
         frame_files = sorted(glob.glob(f"{temp_frame_dir}/*.jpg"))
+        print(f"   Found {len(frame_files)} frames. Starting Similarity Check...")
+
         last_processed_frame = None
         
         for i, frame_file in enumerate(frame_files):
             timestamp = i * smart_interval
-            if not has_screen_changed(last_processed_frame, frame_file, threshold=15.0): continue
             
+            # THE FILTER: Threshold raised to 25.0 to ignore "guy talking"
+            if not has_screen_changed(last_processed_frame, frame_file, threshold=25.0): 
+                print(f"   [Skip] Frame at {timestamp:.1f}s (No major change)")
+                continue
+            
+            print(f"   [Analyze] Visual change detected at {timestamp:.1f}s...")
             try:
-                # GENERAL PURPOSE VISUAL PROMPT: Works for Math, Cooking, Tech, etc.
+                # Optimized Prompt for Brevity
                 response = ollama.chat(model='llava', messages=[{
                     'role': 'user',
-                    'content': 'Analyze this frame. If it contains text, equations, or code, transcribe the most important parts. If it shows an object or action, describe it. Focus on details relevant to a tutorial or presentation.',
+                    'content': 'Describe this image in 1 sentence. Focus on objects shown or text displayed.',
                     'images': [frame_file]
                 }])
                 
                 visual_description = response['message']['content']
                 last_processed_frame = frame_file
-                visual_text = f"[VISUAL AT {timestamp:.1f}s] {visual_description}"
+                
+                visual_text = f"[VISUAL SCENE AT {timestamp:.1f}s] {visual_description}"
                 full_text += visual_text + " "
                 
                 vector = embed_model.embed_query(visual_text)
                 db.add(TranscriptChunk(video_id=video_id, start_time=timestamp, end_time=timestamp + smart_interval, text=visual_text, embedding=vector))
             except Exception as e:
-                print(f"Error analyzing frame: {e}")
+                print(f"   !!! Visual Error on frame {i}: {e}")
 
-        # --- STEP 3: THE UNIVERSAL SUMMARY ENGINE ---
-        print(f"4. Generating Universal Summary...")
+        # ====================================================
+        # STEP 3: SUMMARY
+        # ====================================================
+        print(f"3. Generating Summary...")
         
         summary_prompt = f"""
-        You are an intelligent video analyzer. Analyze the provided [AUDIO] and [VISUAL] data from a video.
+        You are an intelligent video analyzer. 
         
-        Video Title/Label: {original_filename}
+        Video Title: {original_filename}
 
-        INSTRUCTIONS:
-        1. Determine the CATEGORY of the video (e.g., Academic Lecture, Software Tutorial, Product Review, Vlog).
-        2. Create a structured summary using the following sections:
+        ⚠️ CRITICAL INSTRUCTION:
+        - Incorporate BOTH [AUDIO] and [VISUAL SCENE] data.
+        - The visual data contains timestamps. Use them to describe the flow.
+        - DO NOT mention video quality, resolution, or microphone quality.
+        - DO NOT act like a reviewer.
 
+        FORMAT:
         # 📌 Video Title & Subject
-        (Clearly state what this video is about)
+        (1 sentence)
 
-        # 🎯 Core Purpose / Goal
-        (What is the main thing the creator wants the viewer to learn or understand?)
+        # 🎯 Core Purpose
+        (Why this video exists)
 
-        # 💡 Key Concepts & Takeaways
-        (List the 5 most important points, formulas, steps, or insights.)
+        # 💡 Key Concepts
+        (Bullet points)
 
-        # 🛠️ Detailed Walkthrough
-        (A chronological breakdown of the video's flow. Include timestamps where possible.)
+        # 🛠️ Timeline Walkthrough
+        (Chronological breakdown)
 
-        # 🏁 Final Conclusion & Perspective
-        (Summarize the creator's final thoughts, the solution to the problem, or the verdict on the topic.)
+        # 🏁 Conclusion
+        (Final verdict)
 
         DATA:
-        {full_text[:32768]}
+        {full_text[:32000]}
         """
         
+        llm = OllamaLLM(model="llama3")
         video.summary = llm.invoke(summary_prompt)
         video.status = "COMPLETED"
         db.commit()
@@ -160,7 +195,7 @@ def process_video_task(video_id: int, file_path: str, original_filename: str = "
             os.rmdir(temp_frame_dir)
 
     except Exception as e:
-        print(f"!!! ERROR: {e}")
+        print(f"!!! WORKER ERROR: {e}")
         video.status = f"FAILED: {str(e)}"
     finally:
         db.commit()
