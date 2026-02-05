@@ -121,7 +121,13 @@ pip install -r requirements.txt
 ```
 
 ---
+**⚠️ Important**
+After creating the venv, some required DLL files may not install automatically.
+1. Download: **cuBLAS.and.cuDNN_CUDA12_win_v3**
+2. Extract the files.
+3. Copy/Paste (replace/add) the files into: `venv\Lib\site-packages\ctranslate2`
 
+---
 ### 3️⃣ Initialize Database
 
 Run this **one-time** command to create tables and the initial admin account:
@@ -145,7 +151,7 @@ db.commit(); print('Admin Created')"
 
 ### 4️⃣ Run the Application
 
-You need **two terminal windows**.
+You need **three terminal windows**.
 
 **Terminal 1 – API Server**
 ```bash
@@ -157,6 +163,14 @@ uvicorn main:app --reload
 celery -A worker.celery_app worker --loglevel=info --pool=solo
 ```
 
+**Terminal 3 - Start Docker + Ollama**
+If running ollama or docker containers gives error run these commands in terminal 3 and restart terminal 1 and 2
+```bash
+docker start tm-db tm-queue
+```
+```bash
+ollama serve
+```
 ---
 
 ## 📖 Usage

@@ -320,21 +320,52 @@ def get_video_db_status(video_id: int, db: Session = Depends(get_db)):
 
 @app.post("/chat/{video_id}")
 def chat(video_id: int, query: str, db: Session = Depends(get_db)):
+    # 1. GET GLOBAL CONTEXT (The Summary)
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    global_context = video.summary if video.summary else "No summary available."
+
+    # 2. EMBED QUERY
     embed_model = OllamaEmbeddings(model="nomic-embed-text")
     query_vector = embed_model.embed_query(query)
     
-    # Retrieve top 5 chunks
+    # 3. RETRIEVE & EXPAND (Fetch 30 chunks instead of 5)
     results = db.query(TranscriptChunk).filter(TranscriptChunk.video_id == video_id)\
         .order_by(TranscriptChunk.embedding.cosine_distance(query_vector))\
-        .limit(5).all()
-    
-    if not results:
+        .limit(30).all()
+
+    if not results and not video.summary:
         return {"answer": "I couldn't find anything relevant in the video."}
 
-    context_text = "\n".join([f"[{r.start_time:.1f}s]: {r.text}" for r in results])
+    # 4. SORT BY TIME (Crucial for "what happened after X" questions)
+    results.sort(key=lambda x: x.start_time)
+
+    # 5. BUILD CONTEXT STRING
+    transcript_text = "\n".join([f"[{r.start_time:.0f}s]: {r.text}" for r in results])
     
     llm = OllamaLLM(model="llama3")
-    prompt = f"Use this video transcript to answer the question.\n\nContext:\n{context_text}\n\nQuestion: {query}"
+    
+    # 6. FINAL PROMPT
+    prompt = f"""
+    You are an expert video assistant. Use the context below to answer the user's question.
+    
+    --- GLOBAL VIDEO SUMMARY ---
+    {global_context}
+    
+    --- TRANSCRIPT SEGMENTS (Chronological) ---
+    {transcript_text}
+    
+    --- USER QUESTION ---
+    {query}
+    
+    RULES:
+    - If the answer is in the Global Summary, use it.
+    - If the user asks for a specific detail, check the Transcript Segments.
+    - Keep answers concise and helpful.
+    """
+    
     answer = llm.invoke(prompt)
     
-    return {"answer": answer, "sources": context_text}
+    return {"answer": answer, "sources": transcript_text}
